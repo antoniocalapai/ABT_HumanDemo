@@ -3,7 +3,7 @@ import cv2
 import glob
 
 # 📁 Input folder with videos
-video_dir = '/Users/antoninocalapai/Desktop/250404_HumanTest_2'
+video_dir = '/Users/antoninocalapai/_local/'
 video_paths = sorted(glob.glob(os.path.join(video_dir, '*.mp4')))
 
 # 📂 Output base directory for extracted frames

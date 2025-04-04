@@ -1,4 +1,5 @@
 import os
+import cv2
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
@@ -11,12 +12,12 @@ if torch.backends.mps.is_available():
 
 from mmpose.apis import MMPoseInferencer
 
-# 🖼️ Image path
-img_path = '/Users/antoninocalapai/Desktop/250404_HumanTest_2/processed_frames/250404_HumanTest_2_101_20250404143242/frame_0241.png'
+img_path = '/Users/antoninocalapai/_local/frames/250404_HumanTest_2_101_20250404143242/frame_00000.png'
 
 # 🚀 Instantiate inferencer using model alias, force CPU
 inferencer = MMPoseInferencer('human', device='cpu')
 
 # 🔍 Run inference with visualization
-result_generator = inferencer(img_path, show=True)
+result_generator = inferencer(img_path, show=False, out_dir="/Users/antoninocalapai/Desktop/")
 result = next(result_generator)
+
