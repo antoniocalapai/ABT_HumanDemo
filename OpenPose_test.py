@@ -40,8 +40,10 @@ for folder in all_folders:
     print(f"\n📂 Processing folder: {folder} — {len(frame_paths)} frames")
 
     for i, img_path in enumerate(frame_paths):
-
-        result_generator = inferencer(img_path, show=False, out_dir=output_dir)
-        result = next(result_generator)
-
-
+        try:
+            result_generator = inferencer(img_path, show=False, out_dir=output_dir, radius=14, thickness=8)
+            result = next(result_generator)
+        except Exception as e:
+            print(f"⚠️ Error on frame {i}: {e}")
+        finally:
+            os.remove(img_path)

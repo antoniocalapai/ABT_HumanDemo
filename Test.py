@@ -12,12 +12,12 @@ if torch.backends.mps.is_available():
 
 from mmpose.apis import MMPoseInferencer
 
-img_path = '/Users/antoninocalapai/_local/frames/250404_HumanTest_2_101_20250404143242/frame_00000.png'
+img_path = '/Users/antoninocalapai/_local/frames/250404_HumanTest_2_101_20250404143242/frame_00028.png'
 
 # 🚀 Instantiate inferencer using model alias, force CPU
 inferencer = MMPoseInferencer('human', device='cpu')
 
 # 🔍 Run inference with visualization
-result_generator = inferencer(img_path, show=False, out_dir="/Users/antoninocalapai/Desktop/")
+result_generator = inferencer(img_path, radius=14, thickness=8, show=True)
 result = next(result_generator)
 
