@@ -2,7 +2,6 @@ import os
 import cv2
 import glob
 
-# 📁 Input folder with videos
 video_dir = '/Users/antoninocalapai/_local/'
 video_paths = sorted(glob.glob(os.path.join(video_dir, '*.mp4')))
 
@@ -19,7 +18,7 @@ for video_path in video_paths:
     frame_idx = 0
     saved_idx = 0
 
-    print(f"🎞️ Extracting frames from {video_name}...")
+    print(f"Extracting frames from {video_name}...")
 
     while True:
         ret, frame = cap.read()
@@ -34,6 +33,4 @@ for video_path in video_paths:
         frame_idx += 1
 
     cap.release()
-    print(f"✅ Saved {saved_idx} frames (after skipping 60) to: {frame_output_dir}")
-
-print("🧩 All videos processed.")
+    print(f"Saved {saved_idx} frames (after skipping 60) to: {frame_output_dir}")
