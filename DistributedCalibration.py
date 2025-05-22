@@ -1,10 +1,14 @@
 import cv2
+import os
 import numpy as np
 from tqdm import tqdm
 
 # --- Your Configuration ---
-video1_path = "/Users/acalapai/OwnCloud/Shared/PriCaB/_HomeCage/videos/Calibration/250520/Calibration__101_20250520154614.mp4"
-video2_path = "/Users/acalapai/OwnCloud/Shared/PriCaB/_HomeCage/videos/Calibration/250520/Calibration__102_20250520154614.mp4"
+home = os.path.expanduser("~")
+
+video1_path = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250520/Calibration__113_20250520154614.mp4")
+video2_path = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250520/Calibration__126_20250520154614.mp4")
+
 checkerboard = (10, 15)  # inner corners per chessboard row and column
 square_size_mm = 40.0    # real-world size of a square
 
