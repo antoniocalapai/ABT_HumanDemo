@@ -1,88 +1,140 @@
 import cv2
-import os
 import numpy as np
-from tqdm import tqdm
+import os
+import re
 
-# --- Your Configuration ---
+# --- Config ---
 home = os.path.expanduser("~")
+video_dir = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250520")
+video_files = [f for f in os.listdir(video_dir) if f.endswith(".mp4")]
+video_files.sort()
 
-video1_path = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250520/Calibration__113_20250520154614.mp4")
-video2_path = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250520/Calibration__126_20250520154614.mp4")
+checkerboard = (14, 9)
+square_size_mm = 40.0
+cb_flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
 
-checkerboard = (10, 15)  # inner corners per chessboard row and column
-square_size_mm = 40.0    # real-world size of a square
+def extract_id(name):
+    match = re.search(r'Calibration__(\d+)', name)
+    return int(match.group(1)) if match else -1
 
-# --- Prepare object points ---
-objp = np.zeros((checkerboard[0] * checkerboard[1], 3), np.float32)
-objp[:, :2] = np.mgrid[0:checkerboard[0], 0:checkerboard[1]].T.reshape(-1, 2)
-objp *= square_size_mm
+font = cv2.FONT_HERSHEY_SIMPLEX
+font_scale = 0.5
+font_color = (0, 255, 0)
+thickness = 1
+line_type = cv2.LINE_AA
 
-# --- Containers for points ---
-objpoints = []
-imgpoints1 = []
-imgpoints2 = []
+# --- Process each consecutive pair ---
+for i in range(len(video_files) - 1):
+    video1_file = video_files[i]
+    video2_file = video_files[i + 1]
+    video1_path = os.path.join(video_dir, video1_file)
+    video2_path = os.path.join(video_dir, video2_file)
+    cam1_id = extract_id(video1_file)
+    cam2_id = extract_id(video2_file)
 
-# --- Load videos ---
-cap1 = cv2.VideoCapture(video1_path)
-cap2 = cv2.VideoCapture(video2_path)
+    print(f"\n🔧 Processing Camera {cam1_id} + Camera {cam2_id}")
+    cap1 = cv2.VideoCapture(video1_path)
+    cap2 = cv2.VideoCapture(video2_path)
 
-frame_count = int(min(cap1.get(cv2.CAP_PROP_FRAME_COUNT), cap2.get(cv2.CAP_PROP_FRAME_COUNT)))
+    if not cap1.isOpened() or not cap2.isOpened():
+        print("❌ Could not open one or both video files.")
+        continue
 
-with tqdm(total=frame_count, desc="Processing frames") as pbar:
+    objp = np.zeros((checkerboard[0] * checkerboard[1], 3), np.float32)
+    objp[:, :2] = np.mgrid[0:checkerboard[0], 0:checkerboard[1]].T.reshape(-1, 2)
+    objp *= square_size_mm
+
+    objpoints = []
+    imgpoints1 = []
+    imgpoints2 = []
+
+    frame_idx = 0
+
     while True:
         ret1, frame1 = cap1.read()
         ret2, frame2 = cap2.read()
         if not ret1 or not ret2:
+            print("🔚 End of video or failure.")
             break
 
-        gray1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
-        gray2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
+        frame_idx += 1
 
-        found1, corners1 = cv2.findChessboardCorners(gray1, checkerboard)
-        found2, corners2 = cv2.findChessboardCorners(gray2, checkerboard)
+        total_frames = int(min(cap1.get(cv2.CAP_PROP_FRAME_COUNT), cap2.get(cv2.CAP_PROP_FRAME_COUNT)))
+        progress = int((frame_idx / total_frames) * 100)
+        print(f"🔄 Processing frame {frame_idx}/{total_frames} ({progress}%)", end='\r')
+
+        # Resize and grayscale
+        gray1 = cv2.cvtColor(cv2.resize(frame1, None, fx=0.5, fy=0.5), cv2.COLOR_BGR2GRAY)
+        gray2 = cv2.cvtColor(cv2.resize(frame2, None, fx=0.5, fy=0.5), cv2.COLOR_BGR2GRAY)
+        frame1 = cv2.resize(frame1, None, fx=0.5, fy=0.5)
+        frame2 = cv2.resize(frame2, None, fx=0.5, fy=0.5)
+
+        # Enhance
+        gray1_proc = cv2.convertScaleAbs(gray1, alpha=1.5, beta=30)
+        gray2_proc = cv2.convertScaleAbs(gray2, alpha=1.5, beta=30)
+        gray1_proc = cv2.GaussianBlur(gray1_proc, (5, 5), 0)
+        gray2_proc = cv2.GaussianBlur(gray2_proc, (5, 5), 0)
+
+        # Detect
+        found1, corners1 = cv2.findChessboardCornersSB(gray1_proc, checkerboard, cb_flags)
+        found2, corners2 = cv2.findChessboardCornersSB(gray2_proc, checkerboard, cb_flags)
 
         if found1 and found2:
-            corners1 = cv2.cornerSubPix(gray1, corners1, (11, 11), (-1, -1),
-                                        criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
-            corners2 = cv2.cornerSubPix(gray2, corners2, (11, 11), (-1, -1),
-                                        criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
-
+            corners1 = cv2.cornerSubPix(gray1_proc, corners1, (11, 11), (-1, -1),
+                                        (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
+            corners2 = cv2.cornerSubPix(gray2_proc, corners2, (11, 11), (-1, -1),
+                                        (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
             objpoints.append(objp)
             imgpoints1.append(corners1)
             imgpoints2.append(corners2)
 
-            vis1 = cv2.drawChessboardCorners(frame1.copy(), checkerboard, corners1, found1)
-            vis2 = cv2.drawChessboardCorners(frame2.copy(), checkerboard, corners2, found2)
-            combined = np.hstack((vis1, vis2))
-            cv2.imshow("Detected Checkerboards", combined)
-            if cv2.waitKey(100) & 0xFF == ord('q'):
-                break
+            # Draw corners
+            disp1 = cv2.drawChessboardCorners(frame1.copy(), checkerboard, corners1, found1)
+            disp2 = cv2.drawChessboardCorners(frame2.copy(), checkerboard, corners2, found2)
 
-        pbar.update(1)
+            # Annotate file names and frame number
+            label1 = f"{video1_file} | Frame {frame_idx}"
+            label2 = f"{video2_file} | Frame {frame_idx}"
+            cv2.putText(disp1, label1, (10, disp1.shape[0] - 10), font, font_scale, font_color, thickness, line_type)
+            cv2.putText(disp2, label2, (10, disp2.shape[0] - 10), font, font_scale, font_color, thickness, line_type)
 
-cap1.release()
-cap2.release()
-cv2.destroyAllWindows()
+            # Stack top and bottom and save collage
+            collage = np.vstack((disp1, disp2))
+            collage_name = f"collage_{cam1_id}_{cam2_id}_frame_{frame_idx}.jpg"
+            collage_path = os.path.join(video_dir, collage_name)
+            cv2.imwrite(collage_path, collage)
 
-# --- Run stereo calibration ---
-ret, mtx1, dist1, mtx2, dist2, R, T, E, F = cv2.stereoCalibrate(
-    objpoints, imgpoints1, imgpoints2,
-    None, None, None, None,
-    gray1.shape[::-1],
-    flags=cv2.CALIB_FIX_INTRINSIC,
-    criteria=(cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, 100, 1e-5)
-)
+            print(f"💾 Saved collage for frame {frame_idx} at {collage_path}")
 
-# --- Save results ---
-fs = cv2.FileStorage("stereo_calibration.yaml", cv2.FILE_STORAGE_WRITE)
-fs.write("cameraMatrix1", mtx1)
-fs.write("distCoeffs1", dist1)
-fs.write("cameraMatrix2", mtx2)
-fs.write("distCoeffs2", dist2)
-fs.write("R", R)
-fs.write("T", T)
-fs.write("E", E)
-fs.write("F", F)
-fs.release()
+    cap1.release()
+    cap2.release()
 
-print("✅ Stereo calibration complete. Results saved to stereo_calibration.yaml")
+    print(f"\n📦 Total valid stereo detections for {cam1_id}+{cam2_id}: {len(objpoints)}")
+
+    if len(objpoints) < 3:
+        print("❌ Not enough valid detections for stereo calibration.")
+        continue
+
+    image_size = gray1.shape[::-1]
+    print("⚙️ Running stereo calibration...")
+    ret, mtx1, dist1, mtx2, dist2, R, T, E, F = cv2.stereoCalibrate(
+        objpoints, imgpoints1, imgpoints2,
+        None, None, None, None,
+        image_size,
+        flags=cv2.CALIB_FIX_INTRINSIC,
+        criteria=(cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, 100, 1e-5)
+    )
+
+    save_path = os.path.join(video_dir, f"stereo_calibration_{cam1_id}_{cam2_id}.yaml")
+    fs = cv2.FileStorage(save_path, cv2.FILE_STORAGE_WRITE)
+    fs.write("cameraMatrix1", mtx1)
+    fs.write("distCoeffs1", dist1)
+    fs.write("cameraMatrix2", mtx2)
+    fs.write("distCoeffs2", dist2)
+    fs.write("R", R)
+    fs.write("T", T)
+    fs.write("E", E)
+    fs.write("F", F)
+    fs.release()
+
+    print(f"✅ Calibration complete. Saved to {save_path}")

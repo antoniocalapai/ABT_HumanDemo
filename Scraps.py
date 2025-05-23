@@ -4,8 +4,8 @@ import os
 
 # --- Paths ---
 home = os.path.expanduser("~")
-video1_path = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250520/Calibration__113_20250520154614.mp4")
-video2_path = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250520/Calibration__126_20250520154614.mp4")
+video1_path = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250520/Calibration__113.mp4")
+video2_path = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250520/Calibration__102.mp4")
 
 cap1 = cv2.VideoCapture(video1_path)
 cap2 = cv2.VideoCapture(video2_path)
@@ -17,7 +17,7 @@ if not cap1.isOpened() or not cap2.isOpened():
 # --- Checkerboard config ---
 checkerboard = (14, 9)
 square_size_mm = 40.0
-cb_flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE  # more robust, no FAST_CHECK
+cb_flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
 
 # --- Prepare object points ---
 objp = np.zeros((checkerboard[0] * checkerboard[1], 3), np.float32)
@@ -79,11 +79,11 @@ while True:
                           np.hstack((cv2.cvtColor(gray2, cv2.COLOR_GRAY2BGR), disp2))))
     cv2.imshow("Grayscale vs Detected Corners (Cam1 top, Cam2 bottom)", combined)
 
-    # --- Pause if detected in either camera ---
-    if found1 or found2:
-        print("🛑 Pattern detected! Press 's' to save (only if both), any key to skip, 'q' to quit.")
+    # --- Wait for keystroke only if BOTH views detected ---
+    if found1 and found2:
+        print("🛑 Checkerboard detected in both cameras. Press 's' to save, any key to skip, 'q' to quit.")
         key = cv2.waitKey(0) & 0xFF
-        if key == ord('s') and found1 and found2:
+        if key == ord('s'):
             objpoints.append(objp)
             imgpoints1.append(corners1)
             imgpoints2.append(corners2)
@@ -91,6 +91,7 @@ while True:
         elif key == ord('q'):
             break
     else:
+        # Keep advancing quickly
         key = cv2.waitKey(10) & 0xFF
         if key == ord('q'):
             break
