@@ -5,7 +5,7 @@ import re
 
 # --- Config ---
 home = os.path.expanduser("~")
-video_dir = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250520")
+video_dir = os.path.join(home, "ownCloud/Shared/PriCaB/_HomeCage/250523b")
 video_files = [f for f in os.listdir(video_dir) if f.endswith(".mp4")]
 video_files.sort()
 
@@ -23,14 +23,29 @@ font_color = (0, 255, 0)
 thickness = 1
 line_type = cv2.LINE_AA
 
-# Create folder for detected frames
+# Create folders
 detected_dir = os.path.join(video_dir, "detected_frames")
+preprocessed_dir = os.path.join(video_dir, "preprocessed_frames")
 os.makedirs(detected_dir, exist_ok=True)
+os.makedirs(preprocessed_dir, exist_ok=True)
 
-# --- Process each consecutive pair ---
-for i in range(len(video_files) - 1):
-    video1_file = video_files[i]
-    video2_file = video_files[i + 1]
+# --- Specify camera pairings manually ---
+pairings = [
+    ("Calibration__101", "Calibration__102"),
+    ("Calibration__101", "Calibration__126"),
+    ("Calibration__102", "Calibration__113"),
+    ("Calibration__113", "Calibration__126"),
+]
+
+# --- Process specified camera pairs ---
+for cam1_tag, cam2_tag in pairings:
+    video1_file = next((f for f in video_files if cam1_tag in f), None)
+    video2_file = next((f for f in video_files if cam2_tag in f), None)
+
+    if not video1_file or not video2_file:
+        print(f"❌ Missing video for pair: {cam1_tag}, {cam2_tag}")
+        continue
+
     video1_path = os.path.join(video_dir, video1_file)
     video2_path = os.path.join(video_dir, video2_file)
     cam1_id = extract_id(video1_file)
@@ -75,6 +90,14 @@ for i in range(len(video_files) - 1):
         # Enhance
         gray1_proc = cv2.convertScaleAbs(gray1, alpha=1.5, beta=30)
         gray2_proc = cv2.convertScaleAbs(gray2, alpha=1.5, beta=30)
+
+        # Apply histogram equalization to Camera 101
+        if cam1_id == 101:
+            gray1_proc = cv2.equalizeHist(gray1_proc)
+        if cam2_id == 101:
+            gray2_proc = cv2.equalizeHist(gray2_proc)
+
+        # Blur (optional smoothing)
         gray1_proc = cv2.GaussianBlur(gray1_proc, (5, 5), 0)
         gray2_proc = cv2.GaussianBlur(gray2_proc, (5, 5), 0)
 
@@ -101,18 +124,19 @@ for i in range(len(video_files) - 1):
             cv2.putText(disp1, label1, (10, disp1.shape[0] - 10), font, font_scale, font_color, thickness, line_type)
             cv2.putText(disp2, label2, (10, disp2.shape[0] - 10), font, font_scale, font_color, thickness, line_type)
 
-            # Save both frames
-            fname1 = f"detected_cam{cam1_id:03d}_frame_{frame_idx:04d}.jpg"
-            fname2 = f"detected_cam{cam2_id:03d}_frame_{frame_idx:04d}.jpg"
-            cv2.imwrite(os.path.join(detected_dir, fname1), disp1)
-            cv2.imwrite(os.path.join(detected_dir, fname2), disp2)
+            # Save detection collage
+            detected_collage = np.vstack((disp1, disp2))
+            collage_name = f"collage_detected_{cam1_id}_{cam2_id}_frame_{frame_idx:04d}.jpg"
+            cv2.imwrite(os.path.join(detected_dir, collage_name), detected_collage)
 
-            # Save collage
-            collage = np.vstack((disp1, disp2))
-            collage_name = f"collage_{cam1_id}_{cam2_id}_frame_{frame_idx:04d}.jpg"
-            cv2.imwrite(os.path.join(detected_dir, collage_name), collage)
+            # Save preprocessed grayscale collage
+            gray1_rgb = cv2.cvtColor(gray1_proc, cv2.COLOR_GRAY2BGR)
+            gray2_rgb = cv2.cvtColor(gray2_proc, cv2.COLOR_GRAY2BGR)
+            preproc_collage = np.vstack((gray1_rgb, gray2_rgb))
+            collage_preproc_name = f"collage_preprocessed_{cam1_id}_{cam2_id}_frame_{frame_idx:04d}.jpg"
+            cv2.imwrite(os.path.join(preprocessed_dir, collage_preproc_name), preproc_collage)
 
-            print(f"💾 Saved detection frames and collage at frame {frame_idx}")
+            print(f"💾 Saved preprocessed + detected collages at frame {frame_idx}")
 
     cap1.release()
     cap2.release()
@@ -125,6 +149,7 @@ for i in range(len(video_files) - 1):
 
     image_size = gray1.shape[::-1]
     print("⚙️ Running stereo calibration...")
+
     ret, mtx1, dist1, mtx2, dist2, R, T, E, F = cv2.stereoCalibrate(
         objpoints, imgpoints1, imgpoints2,
         None, None, None, None,
@@ -133,8 +158,9 @@ for i in range(len(video_files) - 1):
         criteria=(cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, 100, 1e-5)
     )
 
-    save_path = os.path.join(video_dir, f"stereo_calibration_{cam1_id}_{cam2_id}.yaml")
-    fs = cv2.FileStorage(save_path, cv2.FILE_STORAGE_WRITE)
+    # Save results
+    calib_path = os.path.join(video_dir, f"stereo_calibration_{cam1_id}_{cam2_id}.yaml")
+    fs = cv2.FileStorage(calib_path, cv2.FILE_STORAGE_WRITE)
     fs.write("cameraMatrix1", mtx1)
     fs.write("distCoeffs1", dist1)
     fs.write("cameraMatrix2", mtx2)
@@ -145,4 +171,4 @@ for i in range(len(video_files) - 1):
     fs.write("F", F)
     fs.release()
 
-    print(f"✅ Calibration complete. Saved to {save_path}")
+    print(f"✅ Calibration complete. Saved to {calib_path}")
