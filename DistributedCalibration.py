@@ -23,6 +23,10 @@ font_color = (0, 255, 0)
 thickness = 1
 line_type = cv2.LINE_AA
 
+# Create folder for detected frames
+detected_dir = os.path.join(video_dir, "detected_frames")
+os.makedirs(detected_dir, exist_ok=True)
+
 # --- Process each consecutive pair ---
 for i in range(len(video_files) - 1):
     video1_file = video_files[i]
@@ -49,6 +53,7 @@ for i in range(len(video_files) - 1):
     imgpoints2 = []
 
     frame_idx = 0
+    total_frames = int(min(cap1.get(cv2.CAP_PROP_FRAME_COUNT), cap2.get(cv2.CAP_PROP_FRAME_COUNT)))
 
     while True:
         ret1, frame1 = cap1.read()
@@ -58,8 +63,6 @@ for i in range(len(video_files) - 1):
             break
 
         frame_idx += 1
-
-        total_frames = int(min(cap1.get(cv2.CAP_PROP_FRAME_COUNT), cap2.get(cv2.CAP_PROP_FRAME_COUNT)))
         progress = int((frame_idx / total_frames) * 100)
         print(f"🔄 Processing frame {frame_idx}/{total_frames} ({progress}%)", end='\r')
 
@@ -92,19 +95,24 @@ for i in range(len(video_files) - 1):
             disp1 = cv2.drawChessboardCorners(frame1.copy(), checkerboard, corners1, found1)
             disp2 = cv2.drawChessboardCorners(frame2.copy(), checkerboard, corners2, found2)
 
-            # Annotate file names and frame number
+            # Annotate
             label1 = f"{video1_file} | Frame {frame_idx}"
             label2 = f"{video2_file} | Frame {frame_idx}"
             cv2.putText(disp1, label1, (10, disp1.shape[0] - 10), font, font_scale, font_color, thickness, line_type)
             cv2.putText(disp2, label2, (10, disp2.shape[0] - 10), font, font_scale, font_color, thickness, line_type)
 
-            # Stack top and bottom and save collage
-            collage = np.vstack((disp1, disp2))
-            collage_name = f"collage_{cam1_id}_{cam2_id}_frame_{frame_idx}.jpg"
-            collage_path = os.path.join(video_dir, collage_name)
-            cv2.imwrite(collage_path, collage)
+            # Save both frames
+            fname1 = f"detected_cam{cam1_id:03d}_frame_{frame_idx:04d}.jpg"
+            fname2 = f"detected_cam{cam2_id:03d}_frame_{frame_idx:04d}.jpg"
+            cv2.imwrite(os.path.join(detected_dir, fname1), disp1)
+            cv2.imwrite(os.path.join(detected_dir, fname2), disp2)
 
-            print(f"💾 Saved collage for frame {frame_idx} at {collage_path}")
+            # Save collage
+            collage = np.vstack((disp1, disp2))
+            collage_name = f"collage_{cam1_id}_{cam2_id}_frame_{frame_idx:04d}.jpg"
+            cv2.imwrite(os.path.join(detected_dir, collage_name), collage)
+
+            print(f"💾 Saved detection frames and collage at frame {frame_idx}")
 
     cap1.release()
     cap2.release()
